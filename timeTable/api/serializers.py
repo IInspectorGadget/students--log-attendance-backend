@@ -1,6 +1,6 @@
 import json
 from rest_framework import serializers
-from .models import Attendance, AttendanceReport, CustomUser, Group, Student, Subject, SubjectRealization
+from .models import Attendance, AttendanceReport, Course, CustomUser, Faculty, Group, Student, Subject, SubjectRealization, Teacher
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -11,13 +11,22 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['first_name'] = user.first_name
         token['last_name'] = user.last_name
         token['middle_name'] = user.middle_name
+        if  hasattr(user, 'student'):
+            token['is_headman'] = user.student.isHeadman
+            token['type'] = "student"
+            token['group'] = {
+            "id": user.student.group_id.id,
+            "name": user.student.group_id.name,
+        }
+        elif  hasattr(user, 'teacher'):
+            token['type'] = "teacher"
         return token
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['first_name', 'last_name', 'email', 'middle_name', 'phone']  # Укажите нужные вам поля
-
+        fields = ['first_name', 'last_name', 'email', 'middle_name', 'phone']
+    
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
@@ -26,14 +35,30 @@ class UserSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         return representation
+    
+class GroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = '__all__'
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['course'] = instance.course_id.name
+        representation['faculty'] = instance.course_id.faculty_id.name
+        return representation
 
 class StudentSerializer(serializers.ModelSerializer):
-    user = CustomUserSerializer(source='user_id', read_only=True)  # В source указываем поле ForeignKey, связывающее Student и CustomUser
-
+    user = CustomUserSerializer(source='user_id', read_only=True) 
+    group = GroupSerializer(source='group_id', read_only=True)
     class Meta:
         model = Student
-        fields = ['id', 'user', 'group_id', 'isHeadman']  # Укажите нужные вам поля из модели Student
+        fields = ['id', 'user', 'group_id',"group", 'isHeadman'] 
 
+class TeacherSerializer(serializers.ModelSerializer):
+    user = CustomUserSerializer(source='user_id', read_only=True)  
+    class Meta:
+        model = Teacher
+        fields = ['id', 'user', 'job_title',"scientific_title"] 
+    
 class AttendanceSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
@@ -119,32 +144,85 @@ class AttendanceReportGroupSerializer(serializers.ModelSerializer):
         return representation
     
 class AttendanceReportSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    attendance_type = serializers.CharField(source='attendance_id.subject_realization_id.get_type_display', read_only=True)
+    subject= serializers.CharField(source='attendance_id.subject_realization_id.subject_id.name', read_only=True)
+    subject_id = serializers.CharField(source='attendance_id.subject_realization_id.subject_id.id', read_only=True)
     class Meta:
         model = AttendanceReport
-        fields = '__all__'
+        fields = ['id', 'student_id', 'attendance_id', 'attendance_type', 'subject', 'subject_id', 'last_edit_time', 'status', 'status_display']
+  
 
 class SubjectRealizationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SubjectRealization
+        model = Subject
         fields = '__all__'
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation['subject'] = {
-            "id": instance.subject_id.id, 
-            "name": instance.subject_id.name, 
-        }
-        representation['type'] = {
-            "id": instance.type, 
-            "name" : instance.get_type_display()
-        }
-        return representation
+    # def to_representation(self, instance):
+    #     representation = super().to_representation(instance)
+    #     representation['subject'] = {
+    #         "id": instance.subject_id.id, 
+    #         "name": instance.subject_id.name, 
+    #     }
+    #     representation['type'] = {
+    #         "id": instance.type, 
+    #         "name" : instance.get_type_display()
+    #     }
+    #     return representation
     
-class GroupSerializer(serializers.ModelSerializer):
+
+class SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = '__all__'
+
+
+class SubjectSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = '__all__'
+
+class CustomUserSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = '__all__'
+
+class FacultySerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Faculty
+        fields = '__all__'
+
+class CourseSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = '__all__'
+
+class TeacherSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Teacher
+        fields = '__all__'
+
+class GroupSerializerCRUD(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = '__all__'
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation['course'] = instance.course_id.name
-        representation['faculty'] = instance.course_id.faculty_id.name
-        return representation
+
+class StudentSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Student
+        fields = '__all__'
+
+
+class SubjectRealizationSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = SubjectRealization
+        fields = '__all__'
+
+class AttendanceSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = Attendance
+        fields = '__all__'
+
+class AttendanceReportSerializerCRUD(serializers.ModelSerializer):
+    class Meta:
+        model = AttendanceReport
+        fields = '__all__'
